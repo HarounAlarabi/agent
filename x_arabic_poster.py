@@ -10,6 +10,7 @@ Install:
 import os
 import json
 import time
+import re
 import tweepy
 import feedparser
 from abc import ABC, abstractmethod
@@ -528,6 +529,42 @@ class BrowserTweetPoster(TweetPoster):
                     except Exception:
                         pass
 
+                def _id_from_status_href(href: str | None) -> str | None:
+                    if not href:
+                        return None
+                    m = re.search(r"/status/(\d+)", href)
+                    return m.group(1) if m else None
+
+                def _id_from_timeline_dom(post_text: str) -> str | None:
+                    # On some accounts, X returns to /home after posting.
+                    # In that case, extract ID from the newest matching article.
+                    snippet = " ".join(post_text.split())[:40]
+                    try:
+                        for article in page.query_selector_all('article[data-testid="tweet"]')[:6]:
+                            try:
+                                article_text = " ".join((article.inner_text() or "").split())
+                            except Exception:
+                                article_text = ""
+
+                            if snippet and snippet not in article_text:
+                                continue
+
+                            for link in article.query_selector_all('a[href*="/status/"]'):
+                                tid = _id_from_status_href(link.get_attribute("href"))
+                                if tid:
+                                    return tid
+                    except Exception:
+                        pass
+
+                    # Last resort: first status link in the primary column.
+                    try:
+                        link = page.query_selector('main a[href*="/status/"]')
+                        if link:
+                            return _id_from_status_href(link.get_attribute("href"))
+                    except Exception:
+                        pass
+                    return None
+
                 page.on("response", _on_response)
                 try:
                     if reply_to_id:
@@ -604,6 +641,11 @@ class BrowserTweetPoster(TweetPoster):
                     url = page.url
                     if "/status/" in url:
                         return url.split("/status/")[-1].split("?")[0]
+
+                    # Fallback: if still on /home, parse newest matching tweet in timeline.
+                    dom_id = _id_from_timeline_dom(text)
+                    if dom_id:
+                        return dom_id
 
                     page.screenshot(path=str(screenshot_path))
                     raise RuntimeError(
