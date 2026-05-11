@@ -1,2 +1,13 @@
 x_browser_profile/
 .claude/
+.env
+*.db
+*.sqlite
+content_engine.db
+x_session.json
+saved_accounts.json
+debug_screenshot.png
+.streamlit/secrets.toml
+__pycache__/
+*.pyc
+*.pyo

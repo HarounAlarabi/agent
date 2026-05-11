@@ -1,10 +1,18 @@
 import re
 import json
+import os
 import streamlit as st
 from dotenv import load_dotenv
 from pathlib import Path
 
+# Load .env locally; on Streamlit Cloud inject st.secrets into os.environ
 load_dotenv()
+try:
+    for _k, _v in st.secrets.items():
+        if isinstance(_v, str) and _k not in os.environ:
+            os.environ[_k] = _v
+except Exception:
+    pass
 
 from arabic_x_poster.feeds import FEED_CATALOG
 from x_arabic_poster import (
